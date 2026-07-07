@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import NavLink from "./nav-link";
+import { usePathname } from "next/navigation";
+import { BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {  Show, SignInButton, UserButton } from '@clerk/nextjs'
 
@@ -33,13 +35,6 @@ export default function Header({ planBadge }: { planBadge?: React.ReactNode }) {
           href="/"
           className="flex dark:text-blue-200/80 items-center gap-2 text-xl font-semibold text-slate-900 hover:text-black"
         >
-          <Image
-            src="/logo.png"
-            alt="Summarix"
-            width={35}
-            height={35}
-            className="transition-transform dark:invert duration-300 hover:rotate-6"
-          />
           Summarix
         </NavLink>
 
@@ -84,6 +79,17 @@ export default function Header({ planBadge }: { planBadge?: React.ReactNode }) {
           </div>
         </Show>
         <Show when="signed-out">
+          <div className="flex items-center gap-6">
+            <NavLink
+              href="/sign-up"
+              className={cn(
+                "text-xl font-medium text-slate-900 dark:text-blue-200/80 transition-colors",
+                hoverUnderline,
+              )}
+            >
+              Sign Up
+            </NavLink>
+          </div>
           <div className="flex items-center gap-6">
             <NavLink
               href="/sign-in"

@@ -31,7 +31,14 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <ClerkProvider appearance={{ theme: shadcn }}>
+        <ClerkProvider
+          appearance={{
+            theme: shadcn,
+            variables: {
+              fontFamily: "var(--font-geist-sans)",
+            },
+          }}
+        >
           <Header></Header>
           {children}
         </ClerkProvider>
