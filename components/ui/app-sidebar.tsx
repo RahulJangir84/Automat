@@ -23,12 +23,11 @@ import {
 import {
   Sparkles,
   LayoutDashboard,
-  Activity,
-  Settings,
+  Plug,
+  Zap,
+  History,
   ChevronsUpDown,
-  User,
   LogOut,
-  CreditCard,
 } from "lucide-react";
 
 export function AppSidebar() {
@@ -43,14 +42,19 @@ export function AppSidebar() {
       icon: LayoutDashboard,
     },
     {
-      title: "Monitoring",
-      url: "/monitoring",
-      icon: Activity,
+      title: "Integrations",
+      url: "/integrations",
+      icon: Plug,
     },
     {
-      title: "Settings",
-      url: "/settings",
-      icon: Settings,
+      title: "Automations",
+      url: "/automations",
+      icon: Zap,
+    },
+    {
+      title: "History",
+      url: "/history",
+      icon: History,
     },
   ];
 

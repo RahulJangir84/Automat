@@ -2,21 +2,33 @@
   "name": "automat",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
+  "bin": {
+    "automat": "./dist/cli.js"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:cli": "tsup",
+    "dev:cli": "tsx scripts/cli.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@clack/core": "^1.4.3",
+    "@clack/prompts": "^1.7.0",
     "@clerk/nextjs": "^7.5.13",
     "@clerk/ui": "^1.24.2",
+    "@google/generative-ai": "^0.24.1",
     "@neondatabase/serverless": "^1.1.0",
+    "chalk": "^5.6.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "commander": "^15.0.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^1.0.0-rc.4",
+    "figlet": "^1.11.0",
     "lucide-react": "^1.23.0",
     "next": "16.2.10",
     "react": "19.2.4",
@@ -34,6 +46,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
+    "tsup": "^8.5.1",
     "tsx": "^4.23.0",
     "typescript": "^5"
   }
