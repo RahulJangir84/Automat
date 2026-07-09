@@ -20,6 +20,7 @@
     "@clack/prompts": "^1.7.0",
     "@clerk/nextjs": "^7.5.13",
     "@clerk/ui": "^1.24.2",
+    "@google/genai": "^2.10.0",
     "@google/generative-ai": "^0.24.1",
     "@neondatabase/serverless": "^1.1.0",
     "chalk": "^5.6.2",
@@ -39,7 +40,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^20.19.43",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^1.0.0-rc.4",
@@ -48,6 +49,6 @@
     "tailwindcss": "^4",
     "tsup": "^8.5.1",
     "tsx": "^4.23.0",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   }
 }

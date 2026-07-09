@@ -1,7 +1,8 @@
-import chalk from "chalk"
-import {select,isCancel} from "@clack/prompts"
+import { select, isCancel } from "@clack/prompts";
+import chalk from "chalk";
+import { runAgentMode } from "./agent/orchestrator";
 
-export async function runClimode(){
+export async function runCliMode(){
     while(true){
         const mode= await select({
             message:"Choose CLI sub-mode",
@@ -17,7 +18,7 @@ export async function runClimode(){
             return ;
         }
         if(mode==="agent"){
-            console.log(chalk.blue('\nAgent based mode'))
+            await runAgentMode();
         }
         else if(mode==="plan"){
             console.log(chalk.blue('\nPlan based mode'))

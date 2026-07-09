@@ -1,68 +1,38 @@
-export type ActionType =
-  | 'file_create'
-  | 'file_modify'
-  | 'file_delete'
-  | 'folder_create'
-  | 'code_analysis'
-  | 'tool_execute';
+export type ToolName =
+  | "listFiles"
+  | "readFile"
+  | "writeFile"
+  | "runCommand"
+  | "gitDiff";
 
-export type ActionStatus = 'pending' | 'executed' | 'approved' | 'rejected';
+export type ToolCall = {
+  name: ToolName;
+  args: Record<string, unknown>;
+};
 
-export interface ActionLog {
-  id: string;
-  timestamp: Date;
-  type: ActionType;
-  path: string;
-  details: {
-    before?: string;
-    after?: string;
-    toolName?: string;
-    toolResult?: string;
-    error?: string;
-    command?: string;
-  };
-  status: ActionStatus;
-  userApproved?: boolean;
-}
+export type ToolResult = {
+  ok: boolean;
+  output: unknown;
+};
 
-export interface AgentConfig {
-  codebasePath: string;
-  maxFileSizeToRead: number;
-  excludePatterns: string[];
-  tools: {
-    allowShellExecution: boolean;
-    allowFileModification: boolean;
-    allowFileCreation: boolean;
-    allowFolderCreation: boolean;
-  };
-}
+export type AgentRunOptions = {
+  userTask: string;
+  projectRoot: string;
+};
 
-export const defaultAgentConfig = (): AgentConfig => ({
-  codebasePath: process.cwd(),
-  maxFileSizeToRead: 1024 * 1024 ,
-  excludePatterns: [
-    'node_modules',
-    '.git',
-    'dist',
-    'build',
-    '.next',
-    '*.log',
-    '.env*',
-  ],
-  tools: {
-    allowShellExecution: true,
-    allowFileModification: true,
-    allowFileCreation: true,
-    allowFolderCreation: true,
-  },
-});
+export type AgentStepLog = {
+  step: number;
+  type: "model" | "tool";
+  message: string;
+};
 
-export function isMutationType(t: ActionType): boolean {
-  return (
-    t === 'file_create' ||
-    t === 'file_modify' ||
-    t === 'file_delete' ||
-    t === 'folder_create' ||
-    t === 'tool_execute'
-  );
-}
+export type PendingAction =
+  | {
+      type: "write-file";
+      path: string;
+      content: string;
+    }
+  | {
+      type: "run-command";
+      command: string;
+    };

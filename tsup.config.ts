@@ -10,4 +10,5 @@ export default defineConfig({
   clean: true,               // wipe dist/ before each build
   splitting: false,          // single file output
   bundle: true,              // bundle all imports into one file
+  platform: "node",          // target Node.js platform (prevents dynamic require failures for built-ins)
 });
