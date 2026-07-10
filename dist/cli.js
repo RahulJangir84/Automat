@@ -172,6 +172,7 @@ var ToolExecutor = class {
 };
 
 // modes/agent/orchestrator.ts
+import { ApiError } from "@google/genai";
 var ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY
 });
@@ -279,18 +280,35 @@ Task: ${userTask}` }]
   ];
   for (let step = 1; step <= 15; step++) {
     console.log(chalk.dim(`Step ${step}...`));
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: conversation,
-      config: {
-        tools: [{ functionDeclarations: toolDeclarations }]
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: conversation,
+        config: {
+          tools: [{ functionDeclarations: toolDeclarations }]
+        }
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 503) {
+        console.warn("\u26A0\uFE0F Primary model busy. Switching to gemini-3.1-flash-lite...");
+        response = await ai.models.generateContent({
+          model: "gemini-3.1-flash-lite",
+          contents: conversation,
+          config: {
+            tools: [{ functionDeclarations: toolDeclarations }]
+          }
+        });
       }
-    });
+    }
     const text = extractText(response);
     const functionCalls = extractFunctionCalls(response);
     if (text?.trim()) {
       console.log(chalk.green("\nGemini:\n"));
       console.log(text.trim(), "\n");
+    }
+    if (response?.candidates?.[0]?.content) {
+      conversation.push(response.candidates[0].content);
     }
     if (!functionCalls.length) {
       console.log(chalk.blue("Agent finished.\n"));
@@ -301,17 +319,6 @@ Task: ${userTask}` }]
       const result = await executor.execute({
         name: call.name,
         args: call.args ?? {}
-      });
-      conversation.push({
-        role: "model",
-        parts: [
-          {
-            functionCall: {
-              name: call.name,
-              args: call.args ?? {}
-            }
-          }
-        ]
       });
       conversation.push({
         role: "user",
