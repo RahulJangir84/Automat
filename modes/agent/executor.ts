@@ -3,14 +3,22 @@ import { writeFileTool } from "./tools/write-file.js";
 import { listFilesTool } from "./tools/list-files.js";
 import { runCommandTool } from "./tools/run-command.js";
 import { gitDiffTool } from "./tools/git-diff.js";
+import { findFileTool } from "./tools/findFile.js"
 import type { ToolCall, ToolResult } from "./types.js";
 
 export class ToolExecutor {
     constructor(private projectRoot: string) { }
-
     async execute(call: ToolCall): Promise<ToolResult> {
         try {
             switch (call.name) {
+                case "findFile": {
+                    const filename = String(call.args.filename);
+                    const result = await findFileTool(this.projectRoot, filename);
+                    return {
+                        ok: true,
+                        output: result,
+                    };
+                }
                 case "readFile": {
                     const path = String(call.args.path);
                     const result = await readFileTool(this.projectRoot, path);
@@ -26,7 +34,9 @@ export class ToolExecutor {
 
                 case "listFiles": {
                     const path = String(call.args.path ?? ".");
-                    const recursive = Boolean(call.args.recursive ?? false);
+                    const recursive = call.args.recursive === undefined
+                        ? true
+                        : Boolean(call.args.recursive);
                     const result = await listFilesTool(this.projectRoot, path, recursive);
                     return { ok: true, output: result };
                 }

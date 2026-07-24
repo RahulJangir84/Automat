@@ -1,9 +1,9 @@
 import "dotenv/config";
-import path from "node:path";
 import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
 import chalk from "chalk";
 import { ToolExecutor } from "./executor.js";
 import { ApiError } from "@google/genai";
+import { renderTerminalMarkdown } from "../../terminalui/marked";
 
 const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY!,
@@ -29,8 +29,22 @@ const toolDeclarations: FunctionDeclaration[] = [
         },
     },
     {
+        name:"findFile",
+        description:"Locate a file anywhere in the project by filename. Use this whenever the user provides only a filename and the path is unknown.",
+        parameters:{
+            type:Type.OBJECT,
+            properties:{
+                fileName:{
+                    type:Type.STRING,
+                    description:"The name of the file to find, e.g. package.json or utils.ts"
+                }
+            },
+            required:["fileName"]
+        }
+    },
+    {
         name: "readFile",
-        description: "Read a UTF-8 text file from the project.",
+        description: "Read a UTF-8 text file. The path MUST be the exact relative path from the project root (for example src/utils/greet.ts). If only the filename is known, call listFiles recursively first.",
         parameters: {
             type: Type.OBJECT,
             properties: {
@@ -102,14 +116,16 @@ export async function runAgentMode() {
     console.log(chalk.cyan("\nStarting agent...\n"));
 
     const systemPrompt = `
-You are an autonomous coding assistant working inside a local TypeScript/Next.js codebase.
+You are an autonomous coding assistant working inside a local TypeScript project.
 
-Rules:
-1. Inspect the codebase before editing files.
-2. Prefer reading package.json and relevant source files first.
-3. Use writeFile only when you have enough context.
-4. After making code changes, run verification commands if useful (e.g. npm run build).
-5. Be concise and goal-oriented.
+Important rules:
+
+- Never assume the location of a file.
+- If the user mentions only a filename (e.g. greet.ts),
+  FIRST call listFiles with recursive=true.
+- Find the exact relative path.
+- Only then call readFile with that exact path.
+- readFile requires the complete relative path from the project root.
 `;
 
     let conversation: any[] = [
@@ -124,36 +140,43 @@ Rules:
         let response;
         try {
             response = await ai.models.generateContent({
-                model: "gemini-3.5-flash",
+                model: "gemini-2.5-flash",
                 contents: conversation,
                 config: {
-                tools: [{ functionDeclarations: toolDeclarations }],
-            },
-        });
-    }
-    catch(error){
-        if (error instanceof ApiError && error.status === 503) {
-      console.warn("⚠️ Primary model busy. Switching to gemini-3.1-flash-lite...");
-      
-      // Fallback to the ultra-lightweight free model
-      response= await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite', 
-        contents: conversation,
-        config: {
-                tools: [{ functionDeclarations: toolDeclarations }],
+                    systemInstruction: systemPrompt,
+                    tools: [{ functionDeclarations: toolDeclarations }],
+                },
+            });
+        }
+        catch (error) {
+            if (error instanceof ApiError) {
+                if (error.status === 503) {
+                    console.warn("Primary model busy. Switching to gemini-3.1-flash-lite...");
+                } else if (error.status === 429) {
+                    console.error(chalk.red("API Quota exceeded. Please wait a moment or check your API key limits."));
+                    process.exit(0);
+                } else {
+                    console.error(chalk.red(`Gemini API error (${error.status}): ${error.message}`));
+                    process.exit(1);
+                }
+                response = await ai.models.generateContent({
+                    model: 'gemini-2.5 Flash',
+                    contents: conversation,
+                    config: {
+                        systemInstruction: systemPrompt,
+                        tools: [{ functionDeclarations: toolDeclarations }],
+                    }
+                });
+            } else {
+                throw error;
             }
-      });
-    }
-    }
-
+        }
         const text = extractText(response);
         const functionCalls = extractFunctionCalls(response);
-
         if (text?.trim()) {
             console.log(chalk.green("\nGemini:\n"));
-            console.log(text.trim(), "\n");
+            console.log(renderTerminalMarkdown(text.trim()), "\n");
         }
-
         // 1. Push the model's exact response content to keep thoughts/metadata intact
         if (response?.candidates?.[0]?.content) {
             conversation.push(response.candidates[0].content);
@@ -171,7 +194,6 @@ Rules:
                 name: call.name as any,
                 args: call.args ?? {},
             });
-
             // 2. Push the tool outcome response to the history under user role
             conversation.push({
                 role: "user",

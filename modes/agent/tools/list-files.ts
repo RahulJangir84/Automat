@@ -7,6 +7,19 @@ type FileEntry = {
   type: "file" | "directory";
 };
 
+const IGNORE_DIRS=new Set([
+    "node_modules",
+  ".git",
+  ".next",
+  "dist",
+  "build",
+  ".turbo",
+  ".cache",
+  "coverage",
+  ".idea",
+  ".vscode"
+]);
+
 export async function listFilesTool(
   projectRoot: string,
   relDir = ".",
@@ -15,10 +28,13 @@ export async function listFilesTool(
   const root = path.join(projectRoot, relDir);
 
   async function walk(dir: string, base: string): Promise<FileEntry[]> {
+    console.log("walking", dir);
     const entries = await fs.readdir(dir, { withFileTypes: true });
     const result: FileEntry[] = [];
-
     for (const entry of entries) {
+      if (entry.isDirectory() && IGNORE_DIRS.has(entry.name)) {
+        continue;
+    }
       const abs = path.join(dir, entry.name);
       const rel = path.join(base, entry.name).replace(/\\/g, "/");
 

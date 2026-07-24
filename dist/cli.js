@@ -46,12 +46,28 @@ async function writeFileTool(projectRoot, relPath, content) {
 // modes/agent/tools/list-files.ts
 import fs3 from "fs/promises";
 import path3 from "path";
+var IGNORE_DIRS = /* @__PURE__ */ new Set([
+  "node_modules",
+  ".git",
+  ".next",
+  "dist",
+  "build",
+  ".turbo",
+  ".cache",
+  "coverage",
+  ".idea",
+  ".vscode"
+]);
 async function listFilesTool(projectRoot, relDir = ".", recursive = false) {
   const root = path3.join(projectRoot, relDir);
   async function walk(dir, base) {
+    console.log("walking", dir);
     const entries = await fs3.readdir(dir, { withFileTypes: true });
     const result = [];
     for (const entry of entries) {
+      if (entry.isDirectory() && IGNORE_DIRS.has(entry.name)) {
+        continue;
+      }
       const abs = path3.join(dir, entry.name);
       const rel = path3.join(base, entry.name).replace(/\\/g, "/");
       if (entry.isDirectory()) {
@@ -122,6 +138,15 @@ async function gitDiffTool(projectRoot) {
   }
 }
 
+// modes/agent/tools/findFile.ts
+async function findFileTool(projectRoot, filename) {
+  const files = await listFilesTool(projectRoot, ".", true);
+  const matches = files.filter(
+    (file) => file.type === "file" && file.name.toLowerCase() === filename.toLowerCase()
+  );
+  return matches;
+}
+
 // modes/agent/executor.ts
 var ToolExecutor = class {
   constructor(projectRoot) {
@@ -130,6 +155,14 @@ var ToolExecutor = class {
   async execute(call) {
     try {
       switch (call.name) {
+        case "findFile": {
+          const filename = String(call.args.filename);
+          const result = await findFileTool(this.projectRoot, filename);
+          return {
+            ok: true,
+            output: result
+          };
+        }
         case "readFile": {
           const path4 = String(call.args.path);
           const result = await readFileTool(this.projectRoot, path4);
@@ -143,7 +176,7 @@ var ToolExecutor = class {
         }
         case "listFiles": {
           const path4 = String(call.args.path ?? ".");
-          const recursive = Boolean(call.args.recursive ?? false);
+          const recursive = call.args.recursive === void 0 ? true : Boolean(call.args.recursive);
           const result = await listFilesTool(this.projectRoot, path4, recursive);
           return { ok: true, output: result };
         }
@@ -173,6 +206,23 @@ var ToolExecutor = class {
 
 // modes/agent/orchestrator.ts
 import { ApiError } from "@google/genai";
+
+// terminalui/marked.ts
+import { marked } from "marked";
+import { markedTerminal } from "marked-terminal";
+var ready = false;
+function ensureMarked() {
+  if (ready) return;
+  const w = Math.max(40, Math.min(process.stdout.columns || 80, 120));
+  marked.use(markedTerminal({ width: w, reflowText: true }, {}));
+  ready = true;
+}
+function renderTerminalMarkdown(source) {
+  ensureMarked();
+  return marked.parse(source.trimEnd(), { async: false });
+}
+
+// modes/agent/orchestrator.ts
 var ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY
 });
@@ -196,8 +246,22 @@ var toolDeclarations = [
     }
   },
   {
+    name: "findFile",
+    description: "Locate a file anywhere in the project by filename. Use this whenever the user provides only a filename and the path is unknown.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        fileName: {
+          type: Type.STRING,
+          description: "The name of the file to find, e.g. package.json or utils.ts"
+        }
+      },
+      required: ["fileName"]
+    }
+  },
+  {
     name: "readFile",
-    description: "Read a UTF-8 text file from the project.",
+    description: "Read a UTF-8 text file. The path MUST be the exact relative path from the project root (for example src/utils/greet.ts). If only the filename is known, call listFiles recursively first.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -261,14 +325,16 @@ async function runAgentMode() {
   if (!userTask) return;
   console.log(chalk.cyan("\nStarting agent...\n"));
   const systemPrompt = `
-You are an autonomous coding assistant working inside a local TypeScript/Next.js codebase.
+You are an autonomous coding assistant working inside a local TypeScript project.
 
-Rules:
-1. Inspect the codebase before editing files.
-2. Prefer reading package.json and relevant source files first.
-3. Use writeFile only when you have enough context.
-4. After making code changes, run verification commands if useful (e.g. npm run build).
-5. Be concise and goal-oriented.
+Important rules:
+
+- Never assume the location of a file.
+- If the user mentions only a filename (e.g. greet.ts),
+  FIRST call listFiles with recursive=true.
+- Find the exact relative path.
+- Only then call readFile with that exact path.
+- readFile requires the complete relative path from the project root.
 `;
   let conversation = [
     {
@@ -283,29 +349,41 @@ Task: ${userTask}` }]
     let response;
     try {
       response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: conversation,
         config: {
+          systemInstruction: systemPrompt,
           tools: [{ functionDeclarations: toolDeclarations }]
         }
       });
     } catch (error) {
-      if (error instanceof ApiError && error.status === 503) {
-        console.warn("\u26A0\uFE0F Primary model busy. Switching to gemini-3.1-flash-lite...");
+      if (error instanceof ApiError) {
+        if (error.status === 503) {
+          console.warn("Primary model busy. Switching to gemini-3.1-flash-lite...");
+        } else if (error.status === 429) {
+          console.error(chalk.red("API Quota exceeded. Please wait a moment or check your API key limits."));
+          process.exit(0);
+        } else {
+          console.error(chalk.red(`Gemini API error (${error.status}): ${error.message}`));
+          process.exit(1);
+        }
         response = await ai.models.generateContent({
-          model: "gemini-3.1-flash-lite",
+          model: "gemini-2.5 Flash",
           contents: conversation,
           config: {
+            systemInstruction: systemPrompt,
             tools: [{ functionDeclarations: toolDeclarations }]
           }
         });
+      } else {
+        throw error;
       }
     }
     const text = extractText(response);
     const functionCalls = extractFunctionCalls(response);
     if (text?.trim()) {
       console.log(chalk.green("\nGemini:\n"));
-      console.log(text.trim(), "\n");
+      console.log(renderTerminalMarkdown(text.trim()), "\n");
     }
     if (response?.candidates?.[0]?.content) {
       conversation.push(response.candidates[0].content);

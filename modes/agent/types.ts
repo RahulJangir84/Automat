@@ -3,6 +3,7 @@ export type ToolName =
   | "readFile"
   | "writeFile"
   | "runCommand"
+  | "findFile"
   | "gitDiff";
 
 export type ToolCall = {
